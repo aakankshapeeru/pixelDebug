@@ -1,27 +1,476 @@
-import React, {useEffect, useRef, useState} from 'react';
-import {createRoot} from 'react-dom/client';
-import {ArrowRight, Boxes, Check, Download, Focus, ImagePlus, Layers, LoaderCircle, ScanLine, Settings2, ShieldCheck, Terminal, X} from 'lucide-react';
-import './style.css';
+import React, { useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import {
+  ArrowRight,
+  Boxes,
+  Check,
+  Download,
+  Focus,
+  ImagePlus,
+  Layers,
+  LoaderCircle,
+  ScanLine,
+  Settings2,
+  ShieldCheck,
+  Terminal,
+  X,
+} from "lucide-react";
+import "./style.css";
 
-type Defect={id:number;bbox:{x:number;y:number;width:number;height:number};category:string;explanation:string;changed_pixels:number};
-type Report={width:number;height:number;ssim:number;changed_fraction:number;defects:Defect[];overlay:string;warnings:string[];diagnosis_source:string};
-const API='/api';
-function Upload({label,file,onChange}:{label:string;file:File|null;onChange:(f:File|null)=>void}){
- const input=useRef<HTMLInputElement>(null); const [url,setUrl]=useState('');
- useEffect(()=>{if(!file){setUrl('');return;}const u=URL.createObjectURL(file);setUrl(u);return()=>URL.revokeObjectURL(u)},[file]);
- return <div className="upload-wrap"><div className="upload-label"><span>{label}</span><small>{file ? file.name : 'PNG, JPEG or WebP · up to 8 MB'}</small></div><button className={'upload '+(file?'has-image':'')} onClick={()=>input.current?.click()} aria-label={`Upload ${label}`} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();onChange(e.dataTransfer.files[0]??null)}}>{url?<img src={url} alt={label}/>:<><ImagePlus size={30}/><strong>Drop a screenshot here</strong><span>or click to browse files</span></>}</button><input ref={input} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={e=>onChange(e.target.files?.[0]??null)}/></div>
+type Defect = {
+  id: number;
+  bbox: { x: number; y: number; width: number; height: number };
+  category: string;
+  explanation: string;
+  changed_pixels: number;
+};
+type Report = {
+  width: number;
+  height: number;
+  ssim: number;
+  changed_fraction: number;
+  defects: Defect[];
+  overlay: string;
+  warnings: string[];
+  diagnosis_source: string;
+};
+const API = "/api";
+function Upload({
+  label,
+  file,
+  onChange,
+}: {
+  label: string;
+  file: File | null;
+  onChange: (f: File | null) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    if (!file) {
+      setUrl("");
+      return;
+    }
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return (
+    <div className="upload-wrap">
+      <div className="upload-label">
+        <span>{label}</span>
+        <small>{file ? file.name : "PNG, JPEG or WebP · up to 8 MB"}</small>
+      </div>
+      <button
+        className={"upload " + (file ? "has-image" : "")}
+        onClick={() => input.current?.click()}
+        aria-label={`Upload ${label}`}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          onChange(e.dataTransfer.files[0] ?? null);
+        }}
+      >
+        {url ? (
+          <img src={url} alt={label} />
+        ) : (
+          <>
+            <ImagePlus size={30} />
+            <strong>Drop a screenshot here</strong>
+            <span>or click to browse files</span>
+          </>
+        )}
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        hidden
+        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+      />
+    </div>
+  );
 }
-function App(){
- const [reference,setReference]=useState<File|null>(null),[defective,setDefective]=useState<File|null>(null);
- const [sensitivity,setSensitivity]=useState(.5),[align,setAlign]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const [report,setReport]=useState<Report|null>(null),[selected,setSelected]=useState<number|null>(null),[view,setView]=useState<'overlay'|'reference'|'defective'>('overlay'),[preview,setPreview]=useState('');
- const [online,setOnline]=useState(false);
- useEffect(()=>{fetch(`${API}/health`).then(r=>setOnline(r.ok)).catch(()=>setOnline(false))},[]);
- useEffect(()=>{const file=view==='reference'?reference:defective;if(!file){setPreview('');return;}const u=URL.createObjectURL(file);setPreview(u);return()=>URL.revokeObjectURL(u)},[view,reference,defective]);
- function change(kind:'reference'|'defective',file:File|null){(kind==='reference'?setReference:setDefective)(file);setReport(null);setSelected(null);setError('')}
- async function analyze(){if(!reference||!defective)return;setBusy(true);setError('');setSelected(null);try{const body=new FormData();body.append('reference',reference);body.append('defective',defective);body.append('sensitivity',String(sensitivity));body.append('align',String(align));const response=await fetch(`${API}/analyze`,{method:'POST',body});if(!response.ok){const data=await response.json();throw Error(typeof data.detail==='string'?data.detail:'Check image files and comparison settings')}setReport(await response.json());setView('overlay');}catch(e){setError(e instanceof Error?e.message:'Analysis failed')}finally{setBusy(false)}}
- function download(){if(!report)return;const {overlay,...diagnostics}=report;const url=URL.createObjectURL(new Blob([JSON.stringify(diagnostics,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pixeldebug-report.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
- const active=report?.defects.find(d=>d.id===selected);
- return <div className="shell"><aside><a className="brand" href="/" aria-label="PixelDebug home"><span className="logo"><ScanLine size={22}/></span>pixel<span>debug</span></a><div className="workspace-label">WORKSPACE</div><div className="nav active"><Focus size={18}/> Visual inspector <span>01</span></div><a className="nav" href="https://github.com/aakankshapeeru/pixelDebug" target="_blank" rel="noreferrer"><Terminal size={18}/> Source & documentation <ArrowRight size={14}/></a><div className="aside-bottom"><div className="engine"><ShieldCheck size={18}/><div>Evidence first<small>Deterministic CV engine</small></div></div><p>Built for the details<br/>that make a difference.</p><small>PIXELDEBUG / v0.1.0</small></div></aside><main><header><div className="breadcrumb">Workspace <span>/</span> <b>Visual inspector</b></div><div className="status"><i className={online?'online':''}/>{online?'API connected':'API unavailable'}</div></header><div className="content"><div className="eyebrow"><span/> INTERFACE QUALITY, IN FOCUS</div><div className="title-row"><div><h1>Find the difference.<br/><em>Fix the experience.</em></h1><p>Compare your interface against its reference. Turn visual<br className="desktop"/> regressions into precise, actionable evidence.</p></div><div className="version"><ScanLine size={40}/><span>VISUAL INSPECTOR</span><b>01 / COMPARE</b></div></div><div className="section-title"><div><span className="step">01</span><h2>Your screenshots</h2></div><span>Same viewport. Clearer results.</span></div><div className="uploads"><Upload label="Reference" file={reference} onChange={f=>change('reference',f)}/><div className="compare-arrow"><ArrowRight size={18}/></div><Upload label="Current build" file={defective} onChange={f=>change('defective',f)}/></div><div className="controls"><div className="sensitivity"><Settings2 size={17}/><label htmlFor="sensitivity">Sensitivity</label><input id="sensitivity" type="range" min="0" max="1" step=".05" value={sensitivity} onChange={e=>setSensitivity(Number(e.target.value))}/><span>{Math.round(sensitivity*100)}%</span></div><label className="checkbox"><input type="checkbox" checked={align} onChange={e=>setAlign(e.target.checked)}/> Align small shifts</label><button className="primary" disabled={!reference||!defective||busy} onClick={analyze}>{busy?<LoaderCircle className="spin" size={18}/>:<ScanLine size={18}/>} {busy?'Comparing…':'Analyze screenshots'}{!busy&&<ArrowRight size={17}/>}</button></div>{error&&<div className="error" role="alert"><X size={18}/>{error}</div>}<div className="section-title results-heading"><div><span className="step">02</span><h2>Inspection results</h2></div>{report&&<button className="text-button" onClick={download}><Download size={15}/> Export JSON</button>}</div>{report?<><div className="stats"><div><small>DETECTED REGIONS</small><strong>{report.defects.length.toString().padStart(2,'0')}</strong></div><div><small>STRUCTURAL SIMILARITY</small><strong>{(report.ssim*100).toFixed(1)}<span>%</span></strong></div><div><small>CHANGED PIXELS</small><strong>{(report.changed_fraction*100).toFixed(2)}<span>%</span></strong></div><div><small>ANALYSIS ENGINE</small><strong className="engine-name">OpenCV + SSIM</strong><span className="heuristic">Heuristic · uncalibrated</span></div></div><div className="inspection"><div className="canvas-panel"><div className="tabs">{(['overlay','reference','defective'] as const).map(t=><button key={t} className={view===t?'chosen':''} onClick={()=>setView(t)}>{t==='overlay'&&<Layers size={14}/>} {t==='defective'?'Current build':t}</button>)}<small>{report.width} × {report.height}</small></div><div className="image-stage"><div className="image-inner"><img src={view==='overlay'?report.overlay:preview} alt={`${view} screenshot`}/>{report.defects.map(d=><button aria-label={`Select defect ${d.id}`} key={d.id} className={'box '+(selected===d.id?'selected':'')} style={{left:`${d.bbox.x/report.width*100}%`,top:`${d.bbox.y/report.height*100}%`,width:`${d.bbox.width/report.width*100}%`,height:`${d.bbox.height/report.height*100}%`}} onClick={()=>setSelected(d.id)}><span>{d.id}</span></button>)}</div></div></div><div className="findings"><h3>Detected changes <span>{report.defects.length}</span></h3>{report.defects.length===0?<div className="clean"><Check/>No significant changes detected at this sensitivity.</div>:report.defects.map(d=><button key={d.id} className={'finding '+(d.id===selected?'selected':'')} onClick={()=>setSelected(d.id)}><div><span className="finding-num">{String(d.id).padStart(2,'0')}</span><b>{d.category.replaceAll('_',' ')}</b></div><p>{d.explanation}</p><small>{d.bbox.width} × {d.bbox.height} px <span>at {d.bbox.x}, {d.bbox.y}</span></small></button>)}</div></div>{active&&<div className="notice">Selected region #{active.id} · {active.changed_pixels.toLocaleString()} changed pixels. Inspect CSS and DOM to confirm the cause.</div>}<div className="notice">{report.warnings.join(' ')}</div></>:<div className="empty-results"><div className="empty-icon"><Boxes size={29}/></div><h3>A little perspective changes everything.</h3><p>Add two screenshots and run a comparison.<br/>Your visual evidence will appear here.</p><div><span><Check size={13}/> Local image processing</span><span><Check size={13}/> No API keys needed</span><span><Check size={13}/> Structured diagnostics</span></div></div>}<footer><span>Less guesswork. Better interfaces.</span><span>CV diagnostics are working. Multimodal AI is experimental.</span></footer></div></main></div>
+function App() {
+  const [reference, setReference] = useState<File | null>(null),
+    [defective, setDefective] = useState<File | null>(null);
+  const [sensitivity, setSensitivity] = useState(0.5),
+    [align, setAlign] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const [report, setReport] = useState<Report | null>(null),
+    [selected, setSelected] = useState<number | null>(null),
+    [view, setView] = useState<"overlay" | "reference" | "defective">(
+      "overlay",
+    ),
+    [preview, setPreview] = useState("");
+  const [online, setOnline] = useState(false);
+  useEffect(() => {
+    fetch(`${API}/health`)
+      .then((r) => setOnline(r.ok))
+      .catch(() => setOnline(false));
+  }, []);
+  useEffect(() => {
+    const file = view === "reference" ? reference : defective;
+    if (!file) {
+      setPreview("");
+      return;
+    }
+    const u = URL.createObjectURL(file);
+    setPreview(u);
+    return () => URL.revokeObjectURL(u);
+  }, [view, reference, defective]);
+  function change(kind: "reference" | "defective", file: File | null) {
+    (kind === "reference" ? setReference : setDefective)(file);
+    setReport(null);
+    setSelected(null);
+    setError("");
+  }
+  async function analyze() {
+    if (!reference || !defective) return;
+    setBusy(true);
+    setError("");
+    setSelected(null);
+    try {
+      const body = new FormData();
+      body.append("reference", reference);
+      body.append("defective", defective);
+      body.append("sensitivity", String(sensitivity));
+      body.append("align", String(align));
+      const response = await fetch(`${API}/analyze`, { method: "POST", body });
+      if (!response.ok) {
+        const data = await response.json();
+        throw Error(
+          typeof data.detail === "string"
+            ? data.detail
+            : "Check image files and comparison settings",
+        );
+      }
+      setReport(await response.json());
+      setView("overlay");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Analysis failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  function download() {
+    if (!report) return;
+    const { overlay, ...diagnostics } = report;
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(diagnostics, null, 2)], {
+        type: "application/json",
+      }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pixeldebug-report.json";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  const active = report?.defects.find((d) => d.id === selected);
+  return (
+    <div className="shell">
+      <aside>
+        <a className="brand" href="/" aria-label="PixelDebug home">
+          <span className="logo">
+            <ScanLine size={22} />
+          </span>
+          pixel<span>debug</span>
+        </a>
+        <div className="workspace-label">WORKSPACE</div>
+        <div className="nav active">
+          <Focus size={18} /> Visual inspector <span>01</span>
+        </div>
+        <a
+          className="nav"
+          href="https://github.com/aakankshapeeru/pixelDebug"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <Terminal size={18} /> Source & documentation <ArrowRight size={14} />
+        </a>
+        <div className="aside-bottom">
+          <div className="engine">
+            <ShieldCheck size={18} />
+            <div>
+              Evidence first<small>Deterministic CV engine</small>
+            </div>
+          </div>
+          <p>
+            Built for the details
+            <br />
+            that make a difference.
+          </p>
+          <small>PIXELDEBUG / v0.1.0</small>
+        </div>
+      </aside>
+      <main>
+        <header>
+          <div className="breadcrumb">
+            Workspace <span>/</span> <b>Visual inspector</b>
+          </div>
+          <div className="status">
+            <i className={online ? "online" : ""} />
+            {online ? "API connected" : "API unavailable"}
+          </div>
+        </header>
+        <div className="content">
+          <div className="eyebrow">
+            <span /> INTERFACE QUALITY, IN FOCUS
+          </div>
+          <div className="title-row">
+            <div>
+              <h1>
+                Find the difference.
+                <br />
+                <em>Fix the experience.</em>
+              </h1>
+              <p>
+                Compare your interface against its reference. Turn visual
+                <br className="desktop" /> regressions into precise, actionable
+                evidence.
+              </p>
+            </div>
+            <div className="version">
+              <ScanLine size={40} />
+              <span>VISUAL INSPECTOR</span>
+              <b>01 / COMPARE</b>
+            </div>
+          </div>
+          <div className="section-title">
+            <div>
+              <span className="step">01</span>
+              <h2>Your screenshots</h2>
+            </div>
+            <span>Same viewport. Clearer results.</span>
+          </div>
+          <div className="uploads">
+            <Upload
+              label="Reference"
+              file={reference}
+              onChange={(f) => change("reference", f)}
+            />
+            <div className="compare-arrow">
+              <ArrowRight size={18} />
+            </div>
+            <Upload
+              label="Current build"
+              file={defective}
+              onChange={(f) => change("defective", f)}
+            />
+          </div>
+          <div className="controls">
+            <div className="sensitivity">
+              <Settings2 size={17} />
+              <label htmlFor="sensitivity">Sensitivity</label>
+              <input
+                id="sensitivity"
+                type="range"
+                min="0"
+                max="1"
+                step=".05"
+                value={sensitivity}
+                onChange={(e) => setSensitivity(Number(e.target.value))}
+              />
+              <span>{Math.round(sensitivity * 100)}%</span>
+            </div>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={align}
+                onChange={(e) => setAlign(e.target.checked)}
+              />{" "}
+              Align small shifts
+            </label>
+            <button
+              className="primary"
+              disabled={!reference || !defective || busy}
+              onClick={analyze}
+            >
+              {busy ? (
+                <LoaderCircle className="spin" size={18} />
+              ) : (
+                <ScanLine size={18} />
+              )}{" "}
+              {busy ? "Comparing…" : "Analyze screenshots"}
+              {!busy && <ArrowRight size={17} />}
+            </button>
+          </div>
+          {error && (
+            <div className="error" role="alert">
+              <X size={18} />
+              {error}
+            </div>
+          )}
+          <div className="section-title results-heading">
+            <div>
+              <span className="step">02</span>
+              <h2>Inspection results</h2>
+            </div>
+            {report && (
+              <button className="text-button" onClick={download}>
+                <Download size={15} /> Export JSON
+              </button>
+            )}
+          </div>
+          {report ? (
+            <>
+              <div className="stats">
+                <div>
+                  <small>DETECTED REGIONS</small>
+                  <strong>
+                    {report.defects.length.toString().padStart(2, "0")}
+                  </strong>
+                </div>
+                <div>
+                  <small>STRUCTURAL SIMILARITY</small>
+                  <strong>
+                    {(report.ssim * 100).toFixed(1)}
+                    <span>%</span>
+                  </strong>
+                </div>
+                <div>
+                  <small>CHANGED PIXELS</small>
+                  <strong>
+                    {(report.changed_fraction * 100).toFixed(2)}
+                    <span>%</span>
+                  </strong>
+                </div>
+                <div>
+                  <small>ANALYSIS ENGINE</small>
+                  <strong className="engine-name">OpenCV + SSIM</strong>
+                  <span className="heuristic">Heuristic · uncalibrated</span>
+                </div>
+              </div>
+              <div className="inspection">
+                <div className="canvas-panel">
+                  <div className="tabs">
+                    {(["overlay", "reference", "defective"] as const).map(
+                      (t) => (
+                        <button
+                          key={t}
+                          className={view === t ? "chosen" : ""}
+                          onClick={() => setView(t)}
+                        >
+                          {t === "overlay" && <Layers size={14} />}{" "}
+                          {t === "defective" ? "Current build" : t}
+                        </button>
+                      ),
+                    )}
+                    <small>
+                      {report.width} × {report.height}
+                    </small>
+                  </div>
+                  <div className="image-stage">
+                    <div className="image-inner">
+                      <img
+                        src={view === "overlay" ? report.overlay : preview}
+                        alt={`${view} screenshot`}
+                      />
+                      {report.defects.map((d) => (
+                        <button
+                          aria-label={`Select defect ${d.id}`}
+                          key={d.id}
+                          className={
+                            "box " + (selected === d.id ? "selected" : "")
+                          }
+                          style={{
+                            left: `${(d.bbox.x / report.width) * 100}%`,
+                            top: `${(d.bbox.y / report.height) * 100}%`,
+                            width: `${(d.bbox.width / report.width) * 100}%`,
+                            height: `${(d.bbox.height / report.height) * 100}%`,
+                          }}
+                          onClick={() => setSelected(d.id)}
+                        >
+                          <span>{d.id}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="findings">
+                  <h3>
+                    Detected changes <span>{report.defects.length}</span>
+                  </h3>
+                  {report.defects.length === 0 ? (
+                    <div className="clean">
+                      <Check />
+                      No significant changes detected at this sensitivity.
+                    </div>
+                  ) : (
+                    report.defects.map((d) => (
+                      <button
+                        key={d.id}
+                        className={
+                          "finding " + (d.id === selected ? "selected" : "")
+                        }
+                        onClick={() => setSelected(d.id)}
+                      >
+                        <div>
+                          <span className="finding-num">
+                            {String(d.id).padStart(2, "0")}
+                          </span>
+                          <b>{d.category.replaceAll("_", " ")}</b>
+                        </div>
+                        <p>{d.explanation}</p>
+                        <small>
+                          {d.bbox.width} × {d.bbox.height} px{" "}
+                          <span>
+                            at {d.bbox.x}, {d.bbox.y}
+                          </span>
+                        </small>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+              {active && (
+                <div className="notice">
+                  Selected region #{active.id} ·{" "}
+                  {active.changed_pixels.toLocaleString()} changed pixels.
+                  Inspect CSS and DOM to confirm the cause.
+                </div>
+              )}
+              <div className="notice">{report.warnings.join(" ")}</div>
+            </>
+          ) : (
+            <div className="empty-results">
+              <div className="empty-icon">
+                <Boxes size={29} />
+              </div>
+              <h3>A little perspective changes everything.</h3>
+              <p>
+                Add two screenshots and run a comparison.
+                <br />
+                Your visual evidence will appear here.
+              </p>
+              <div>
+                <span>
+                  <Check size={13} /> Local image processing
+                </span>
+                <span>
+                  <Check size={13} /> No API keys needed
+                </span>
+                <span>
+                  <Check size={13} /> Structured diagnostics
+                </span>
+              </div>
+            </div>
+          )}
+          <footer>
+            <span>Less guesswork. Better interfaces.</span>
+            <span>
+              CV diagnostics are working. Multimodal AI is experimental.
+            </span>
+          </footer>
+        </div>
+      </main>
+    </div>
+  );
 }
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
+createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);

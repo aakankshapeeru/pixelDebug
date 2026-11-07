@@ -10,3 +10,5 @@ data/
 *.pt
 *.safetensors
 .DS_Store
+
+*.tsbuildinfo
