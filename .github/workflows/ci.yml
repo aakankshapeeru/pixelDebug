@@ -1,0 +1,32 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.lock && pip install -e '.[dev,ml]'
+      - run: pytest -q
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m pixeldebug.dataset --output data/synthetic --families 20
+      - run: python -m pixeldebug.evaluate data/synthetic
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --prefix frontend && npm run build --prefix frontend
+      - name: Browser upload and export
+        run: |
+          uvicorn pixeldebug.api:app --host 127.0.0.1 --port 8000 &
+          npm run dev --prefix frontend -- --port 5173 &
+          python scripts/wait_ready.py
+          python scripts/browser_smoke.py
+      - name: Build and smoke test containers
+        run: |
+          docker compose up --build -d --wait
+          curl --fail http://localhost:8080/api/health
+          docker compose down

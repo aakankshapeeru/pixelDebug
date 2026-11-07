@@ -1,0 +1,13 @@
+services:
+  backend:
+    build: .
+    environment:
+      PIXELDEBUG_MAX_UPLOAD_BYTES: 8388608
+      PIXELDEBUG_MAX_PIXELS: 12000000
+    mem_limit: 1g
+  frontend:
+    build: ./frontend
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      backend:
+        condition: service_healthy
