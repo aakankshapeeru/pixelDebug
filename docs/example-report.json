@@ -1,0 +1,34 @@
+{
+  "width": 960,
+  "height": 720,
+  "ssim": 0.9772726532157447,
+  "changed_fraction": 0.0719458912037037,
+  "alignment": {
+    "requested": false,
+    "applied": false,
+    "translation": [
+      0,
+      0
+    ]
+  },
+  "defects": [
+    {
+      "id": 1,
+      "bbox": {
+        "x": 32,
+        "y": 199,
+        "width": 442,
+        "height": 115
+      },
+      "category": "color_change",
+      "source": "cv_heuristic",
+      "changed_pixels": 49729,
+      "explanation": "Similar edge structure with changed pixels; inspect color or background styles."
+    }
+  ],
+  "diagnosis_source": "deterministic_cv",
+  "warnings": [
+    "Categories are heuristic suggestions, not calibrated predictions.",
+    "Opt-in alignment can hide genuine global layout shifts."
+  ]
+}
