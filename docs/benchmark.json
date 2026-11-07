@@ -1,0 +1,8 @@
+{
+  "split": "test",
+  "examples": 12,
+  "target_recall_iou_0.5": 0.5833333333333334,
+  "mean_best_iou": 0.6547472984847718,
+  "predicted_regions": 157,
+  "note": "One target per example; boxes may fragment or include reflow. No semantic accuracy or real-world generalization claim."
+}
